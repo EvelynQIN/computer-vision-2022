@@ -1,0 +1,5 @@
+# ignore folders
+data/
+runs/
+out/
+logs/
