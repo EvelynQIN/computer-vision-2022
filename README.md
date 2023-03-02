@@ -2,7 +2,6 @@
 
 ## 1 Local Features
 Harris detector for keypints detection and matching of local patches
-![harris](https://github.com/EvelynQIN/computer-vision-2022/blob/main/local-features/results/house_harris.png "harris")
 ![match](https://github.com/EvelynQIN/computer-vision-2022/blob/main/local-features/results/match_ratio.png "match")
 
 ## 2 Image Classification
