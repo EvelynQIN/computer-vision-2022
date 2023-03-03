@@ -11,36 +11,31 @@ from impl.sfm.corrs import GetPairMatches
 
 
 def EstimateEssentialMatrix(K, im1, im2, matches):
-  # TODO
+
   # Normalize coordinates (to points on the normalized image plane)
   K_inv = np.linalg.inv(K)
   normalized_kps1 = MakeHomogeneous(im1.kps, ax=1) @ K_inv.T
-  normalized_kps2 = MakeHomogeneous(im2.kps, ax=1) @ K_inv.T # dim (n_kps2, 3)
+  normalized_kps2 = MakeHomogeneous(im2.kps, ax=1) @ K_inv.T # dim (n_kps, 3)
 
-  
   # Assemble constraint matrix as equation 2.1
-  constraint_matrix = np.zeros((matches.shape[0], 9))
+  constraint_matrix = np.zeros((matches.shape[0], 9)) # one constraint per match pair
   for i in range(matches.shape[0]):
-    # TODO
+
     # Add the constraints
-    p1, p2 = matches[i]
-    x1, y1, _ = normalized_kps1[p1]
-    x2, y2, _ = normalized_kps2[p2]
+    x1 = normalized_kps1[matches[i, 0]][None, :] # (1, 3)
+    x2 = normalized_kps2[matches[i, 1]][None, :] # (1, 3)
 
     # kp1' * E * kp2
-    constraint_matrix[i, :] = [x2 * x1, y2 * x1, x1,
-                               x2 * y1, y2 * y1, y1,
-                               x2, y2, 1]
+    constraint_matrix[i] = (x1.T @ x2).flatten()
   
   # Solve for the nullspace of the constraint matrix
   _, _, vh = np.linalg.svd(constraint_matrix)
   vectorized_E_hat = vh[-1,:]
 
-  # TODO
   # Reshape the vectorized matrix to it's proper shape again
-  E_hat = np.reshape(vectorized_E_hat, (3, 3), order='C')
+  # E_hat = np.reshape(vectorized_E_hat, (3, 3), order='C')
+  E_hat = vectorized_E_hat.reshape((3,3))
 
-  # TODO
   # We need to fulfill the internal constraints of E
   # The first two singular values need to be equal, the third one zero.
   # Since E is up to scale, we can choose the two equal singluar values arbitrarily
@@ -100,14 +95,16 @@ def TriangulatePoints(K, im1, im2, matches):
   P1 = K @ np.append(R1, np.expand_dims(t1, 1), 1)
   P2 = K @ np.append(R2, np.expand_dims(t2, 1), 1)
 
-  # Ignore matches that already have a triangulated point
+  
   new_matches = np.zeros((0, 2), dtype=int)
 
   num_matches = matches.shape[0]
   for i in range(num_matches):
     p3d_idx1 = im1.GetPoint3DIdx(matches[i, 0])
     p3d_idx2 = im2.GetPoint3DIdx(matches[i, 1])
-    if p3d_idx1 == -1 and p3d_idx2 == -1:
+
+    # Ignore matches that already have a triangulated point
+    if p3d_idx1 == -1 and p3d_idx2 == -1: 
       new_matches = np.append(new_matches, matches[[i]], 0)
 
 
@@ -115,6 +112,7 @@ def TriangulatePoints(K, im1, im2, matches):
 
   points3D = np.zeros((num_new_matches, 3))
 
+  # start triangulation
   for i in range(num_new_matches):
 
     kp1 = im1.kps[new_matches[i, 0], :]
@@ -137,44 +135,28 @@ def TriangulatePoints(K, im1, im2, matches):
   im1_corrs = new_matches[:,0]
   im2_corrs = new_matches[:,1]
 
-  # TODO
   # Filter points behind the cameras by transforming them into each camera space and checking the depth (Z)
   # Make sure to also remove the corresponding rows in `im1_corrs` and `im2_corrs`
 
   # Filter points behind the first camera
-  points3D_homo = np.concatenate([points3D, np.ones(shape=(points3D.shape[0], 1))], axis=-1)
-  im1_points = points3D_homo @ (P1.T)
-  ids = np.argwhere(im1_points[:, -1] > 0).reshape(-1)
-  im1_corrs = im1_corrs[ids] 
-  im2_corrs = im2_corrs[ids]
-  points3D = points3D[ids]
-  points3D_homo = points3D_homo[ids]
-
-  # Filter points behind the second camera
-  im2_points = points3D_homo @ (P2.T)
-  ids = np.argwhere(im2_points[:, -1] > 0).reshape(-1)
-  im1_corrs = im1_corrs[ids] 
-  im2_corrs = im2_corrs[ids]
-  points3D = points3D[ids]
-  
-  
-  # mask = np.logical_and(filter_1, filter_2)
-
-  # im1_corrs = im1_corrs[mask]
-  # im2_corrs = im2_corrs[mask]
-  # points3D = points3D[mask]
+  points3D_homo = np.concatenate([points3D, np.ones(shape=(points3D.shape[0], 1))], axis=-1) # (n, 4)
+  im1_cam = points3D_homo @ (P1.T)
+  im2_cam = points3D_homo @ (P2.T)
+  filter_mask = np.logical_and(im1_cam[:, -1] > 0, im2_cam[:, -1] > 0)
+  im1_corrs = im1_corrs[filter_mask] 
+  im2_corrs = im2_corrs[filter_mask]
+  points3D = points3D[filter_mask]
 
   return points3D, im1_corrs, im2_corrs
 
 def EstimateImagePose(points2D, points3D, K):  
 
-  # TODO
   # We use points in the normalized image plane.
   # This removes the 'K' factor from the projection matrix.
   # We don't normalize the 3D points here to keep the code simpler.
   K_inv = np.linalg.inv(K)
-  normalized_points2D_homo = MakeHomogeneous(points2D, ax=1) @ K_inv.T # dim (n_kps, 3)
-  normalized_points2D = normalized_points2D_homo[:, :-1] / normalized_points2D_homo[: , -1:]
+  normalized_points2D = MakeHomogeneous(points2D, ax=1) @ K_inv.T # dim (n_kps, 3)
+  # normalized_points2D = normalized_points2D_homo[:, :-1] / normalized_points2D_homo[: , -1:]
 
   constraint_matrix = BuildProjectionConstraintMatrix(normalized_points2D, points3D)
   
@@ -204,7 +186,6 @@ def EstimateImagePose(points2D, points3D, K):
 
 def TriangulateImage(K, image_name, images, registered_images, matches):
 
-  # TODO 
   # Loop over all registered images and triangulate new points with the new image.
   # Make sure to keep track of all new 2D-3D correspondences, also for the registered images
 
@@ -213,6 +194,7 @@ def TriangulateImage(K, image_name, images, registered_images, matches):
   # You can save the correspondences for each image in a dict and refer to the `local` new point indices here.
   # Afterwards you just add the index offset before adding the correspondences to the images.
   corrs = {}
+  corrs_new = []
   for reg_image_name in registered_images:
     reg_image = images[reg_image_name]
     e_matches = GetPairMatches(image_name, reg_image_name, matches) # get the 2d matching between image and one registered image
@@ -223,11 +205,14 @@ def TriangulateImage(K, image_name, images, registered_images, matches):
     corrs[reg_image_name] = np.array([reg_corr, points3D_offset_ind])
 
     # store the correspondence of 2D coor (1st list) and index offset of 3D points (2nd list) from the new image
-    corrs[image_name] = np.array([image_corr, points3D_offset_ind]) if image_name not in corrs \
-                        else np.append(corrs[image_name], np.array([image_corr, points3D_offset_ind]), axis = 1)
+    corrs_new.append(image_corr)
+    # corrs[image_name] = np.array([image_corr, points3D_offset_ind]) if image_name not in corrs \
+    #                     else np.append(corrs[image_name], np.array([image_corr, points3D_offset_ind]), axis = 1)
 
     # add the new 3d points
     points3D = np.append(points3D, new_points3D, axis = 0)
+  
+  corrs[image_name] = np.array([np.concatenate(corrs_new), np.arange(points3D.shape[0])])
   
   return points3D, corrs
   

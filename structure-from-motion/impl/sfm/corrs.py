@@ -37,12 +37,13 @@ def GetPairMatches(im1, im2, matches):
 # Update the reconstruction with the new information from a triangulated image
 def UpdateReconstructionState(new_points3D, corrs, points3D, images):
 
-  # TODO
   # Add the new points to the set of reconstruction points and add the correspondences to the images.
   # Be careful to update the point indices to the global indices in the `points3D` array.
+  offset = points3D.shape[0]
 
   for im_name in corrs:
-    images[im_name].Add3DCorrs(kp_idxs=corrs[im_name][0], p3D_idxs=corrs[im_name][1] + points3D.shape[0])
+    kp2d_id, kp3d_id = corrs[im_name]
+    images[im_name].Add3DCorrs(kp_idxs=kp2d_id, p3D_idxs=kp3d_id + offset)
   
   points3D = np.append(points3D, new_points3D, axis = 0)
 

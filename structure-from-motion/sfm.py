@@ -65,7 +65,7 @@ def main():
   e_im2 = images[e_im2_name]
   e_matches = GetPairMatches(e_im1_name, e_im2_name, matches)
 
-  # TODO Estimate relative pose of first pair
+  # Estimate relative pose of first pair
   # Estimate Fundamental matrix
   E = EstimateEssentialMatrix(K, e_im1, e_im2, e_matches)
 
@@ -82,21 +82,19 @@ def main():
   # Be careful not to set the transformation in the wrong direction
   # you can set the image poses in the images (image.SetPose(...))
   # Note that this pose is assumed to be the transformation from global space to image space
-  # TODO
+
   e_im2.SetPose(np.identity(3), np.zeros((3)))
   for pose in possible_relative_poses:
-
     e_im1.SetPose(pose[0], pose[1]) 
     points3D, _, _ =  TriangulatePoints(K, e_im1, e_im2, e_matches)
     if points3D.shape[0] > max_points:
       max_points = points3D.shape[0]
       best_pose = pose
 
-  # TODO
   # Set the image poses in the images (image.SetPose(...))
   # Note that the pose is assumed to be the transformation from global space to image space
   e_im1.SetPose(best_pose[0], best_pose[1])
-
+  e_im2.SetPose(np.identity(3), np.zeros((3)))
 
   # Triangulate initial points
   points3D, im1_corrs, im2_corrs = TriangulatePoints(K, e_im1, e_im2, e_matches)
@@ -114,10 +112,10 @@ def main():
   # ------------------Map extension--------------------------------------
   # Register new images + triangulate
   # Run until we can register all images
-  while len(registered_images) < len(images):
-    for image_name in images:
-    # for i in range(0, 10, 2):
-      # image_name = image_names[i] # avoid consecutive images
+  while len(registered_images) < len(images) // 2:
+    # for image_name in images:
+    for i in range(0, 10, 2):
+      image_name = image_names[i] # avoid consecutive images
       if image_name in registered_images:
         continue
 
@@ -138,11 +136,9 @@ def main():
       images[image_name].SetPose(R, t)
       images[image_name].Add3DCorrs(image_kp_idxs, point3D_idxs)
 
-      # TODO
       # Triangulate new points wth all previously registered images
       image_points3D, corrs = TriangulateImage(K, image_name, images, registered_images, matches)
 
-      # TODO
       # Update the 3D points and image correspondences
       points3D, images = UpdateReconstructionState(image_points3D, corrs, points3D, images)
 
